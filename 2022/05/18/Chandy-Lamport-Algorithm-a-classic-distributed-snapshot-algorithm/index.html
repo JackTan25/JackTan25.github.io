@@ -20,28 +20,41 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://example.com/index.html">
+  <meta name="description" content="这篇文章主要介绍经典的分布式快照算法——Chandy Lamport Algorithm. 引入 比如在我们上面这张图里面，我们可以很容易知晓各国领导人的当前状态，因为无论从时间上还是空间的角度而言，他们都是同步好了，也就是说我们知道了在这一时刻每个领导人的状态。 但是如果这些领导人他们各自在家，我们有该如何去获取这样一个快照呢？而且同时我们实际需要的快照会更加复杂些，比如目前领导者之前通话说的内">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Chandy Lamport Algorithm-a classic distributed snapshot algorithm">
+<meta property="og:url" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="这篇文章主要介绍经典的分布式快照算法——Chandy Lamport Algorithm. 引入 比如在我们上面这张图里面，我们可以很容易知晓各国领导人的当前状态，因为无论从时间上还是空间的角度而言，他们都是同步好了，也就是说我们知道了在这一时刻每个领导人的状态。 但是如果这些领导人他们各自在家，我们有该如何去获取这样一个快照呢？而且同时我们实际需要的快照会更加复杂些，比如目前领导者之前通话说的内">
 <meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/1.png">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/2.png">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/3.png">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/4.png">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/5.png">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/6.png">
+<meta property="og:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/7.png">
+<meta property="article:published_time" content="2022-05-18T13:15:52.000Z">
+<meta property="article:modified_time" content="2022-05-19T15:30:30.683Z">
 <meta property="article:author" content="John Doe">
+<meta property="article:tag" content="consistent snapshot">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/1.png">
 
-<link rel="canonical" href="http://example.com/">
+<link rel="canonical" href="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome : true,
-    isPost : false,
+    isHome : false,
+    isPost : true,
     lang   : 'en'
   };
 </script>
 
-  <title>Hexo</title>
+  <title>Chandy Lamport Algorithm-a classic distributed snapshot algorithm | Hexo</title>
   
 
 
@@ -139,9 +152,10 @@
         <div class="content-wrap">
           
 
-          <div class="content index posts-expand">
+          <div class="content post posts-expand">
             
-      
+
+    
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
@@ -157,10 +171,9 @@
       <meta itemprop="name" content="Hexo">
     </span>
       <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/" class="post-title-link" itemprop="url">Chandy Lamport Algorithm-a classic distributed snapshot algorithm</a>
-        </h2>
+        <h1 class="post-title" itemprop="name headline">
+          Chandy Lamport Algorithm-a classic distributed snapshot algorithm
+        </h1>
 
         <div class="post-meta">
             <span class="post-meta-item">
@@ -199,7 +212,7 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <p>这篇文章主要介绍经典的分布式快照算法——<strong>Chandy Lamport Algorithm.</strong></p>
+        <p>这篇文章主要介绍经典的分布式快照算法——<strong>Chandy Lamport Algorithm.</strong></p>
 <h2 id="引入"><a href="#引入" class="headerlink" title="引入"></a>引入</h2><p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/1.png"></p>
 <p>比如在我们上面这张图里面，我们可以很容易知晓各国领导人的当前状态，因为无论从时间上还是空间的角度而言，他们都是同步好了，也就是说我们知道了在这一时刻每个领导人的状态。</p>
 <p>但是如果这些领导人他们各自在家，我们有该如何去获取这样一个快照呢？而且同时我们实际需要的快照会更加复杂些，比如目前领导者之前通话说的内容也需要记载。</p>
@@ -241,21 +254,26 @@
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">1.如果A和B事件都发生在同一个进程当中，那么我们无需担心在生成快照时出问题</span><br><span class="line">2.如果时不同的进程,那么假设我们在进程P上发送事件是A,而在Q上相应的接受事件是B,</span><br><span class="line">如果说B是presnapshot,那么说明Q就还没有收到marker message(收到marker mess</span><br><span class="line">age就代表快照开始了),那么P肯定也还没有发送marker message(发送marker mess</span><br><span class="line">age就代表快照开始了),这说明了A肯定也是一个presnapshot</span><br><span class="line">3.当B是postsnapshot同样可以证明A也是postsnapshot</span><br><span class="line"></span><br><span class="line">综上所述我们证明了快照的正确性</span><br></pre></td></tr></table></figure>
 
 
-      
     </div>
 
     
     
     
+
       <footer class="post-footer">
-        <div class="post-eof"></div>
+          <div class="post-tags">
+              <a href="/tags/consistent-snapshot/" rel="tag"># consistent snapshot</a>
+          </div>
+
+        
+
+
+        
       </footer>
+    
   </article>
   
   
-  
-
-
   
 
 
@@ -308,6 +326,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%95%E5%85%A5"><span class="nav-number">1.</span> <span class="nav-text">引入</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Chandy-Lamport-Algorithm"><span class="nav-number">2.</span> <span class="nav-text">Chandy Lamport Algorithm</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96%E5%BF%AB%E7%85%A7%EF%BC%88%E5%BF%AB%E7%85%A7%E7%9A%84%E5%BC%80%E5%A7%8B%E7%82%B9%EF%BC%89"><span class="nav-number">2.1.</span> <span class="nav-text">初始化快照（快照的开始点）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%A0%E6%92%AD%E5%BF%AB%E7%85%A7"><span class="nav-number">2.2.</span> <span class="nav-text">传播快照</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E5%BF%AB%E7%85%A7"><span class="nav-number">2.3.</span> <span class="nav-text">中断快照</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%97%E6%B3%95%E4%BE%8B%E5%AD%90"><span class="nav-number">3.</span> <span class="nav-text">算法例子</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%97%E6%B3%95%E6%AD%A3%E7%A1%AE%E6%80%A7%E8%AF%81%E6%98%8E"><span class="nav-number">4.</span> <span class="nav-text">算法正确性证明</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
