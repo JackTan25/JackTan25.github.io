@@ -20,28 +20,35 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http://example.com/index.html">
+  <meta name="description" content="原理设计 由于考虑到使用单独map来做会导致并发性能非常大，比如当并发写的情况下，由于使用锁机制，这样并发写的性能就会受到很大的影响。于是我们设计并发map时考虑采取多个map的方案，按照上图那样我们会根据key值进行hash分区，来判断用于哪一个innermap,这样就会对并发性能由很大的提升。 代码复现1234567891011121314151617181920212223242526272">
+<meta property="og:type" content="article">
+<meta property="og:title" content="如何使用Go实现支持并发的Map">
+<meta property="og:url" content="http://example.com/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="原理设计 由于考虑到使用单独map来做会导致并发性能非常大，比如当并发写的情况下，由于使用锁机制，这样并发写的性能就会受到很大的影响。于是我们设计并发map时考虑采取多个map的方案，按照上图那样我们会根据key值进行hash分区，来判断用于哪一个innermap,这样就会对并发性能由很大的提升。 代码复现1234567891011121314151617181920212223242526272">
 <meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://example.com/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/1.png">
+<meta property="article:published_time" content="2022-05-21T09:22:17.000Z">
+<meta property="article:modified_time" content="2022-05-23T08:05:08.121Z">
 <meta property="article:author" content="John Doe">
+<meta property="article:tag" content="Concurrency Map">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/1.png">
 
-<link rel="canonical" href="http://example.com/">
+<link rel="canonical" href="http://example.com/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome : true,
-    isPost : false,
+    isHome : false,
+    isPost : true,
     lang   : 'en'
   };
 </script>
 
-  <title>Hexo</title>
+  <title>如何使用Go实现支持并发的Map | Hexo</title>
   
 
 
@@ -139,9 +146,10 @@
         <div class="content-wrap">
           
 
-          <div class="content index posts-expand">
+          <div class="content post posts-expand">
             
-      
+
+    
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
@@ -157,10 +165,9 @@
       <meta itemprop="name" content="Hexo">
     </span>
       <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/" class="post-title-link" itemprop="url">如何使用Go实现支持并发的Map</a>
-        </h2>
+        <h1 class="post-title" itemprop="name headline">
+          如何使用Go实现支持并发的Map
+        </h1>
 
         <div class="post-meta">
             <span class="post-meta-item">
@@ -199,7 +206,7 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h2 id="原理设计"><a href="#原理设计" class="headerlink" title="原理设计"></a>原理设计</h2><p><img src="/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/1.png"></p>
+        <h2 id="原理设计"><a href="#原理设计" class="headerlink" title="原理设计"></a>原理设计</h2><p><img src="/2022/05/21/%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8Go%E5%AE%9E%E7%8E%B0%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E7%9A%84Map/1.png"></p>
 <p>由于考虑到使用单独map来做会导致并发性能非常大，比如当并发写的情况下，由于使用锁机制，这样并发写的性能就会受到很大的影响。于是我们设计并发map时考虑采取多个map的方案，按照上图那样我们会根据key值进行hash分区，来判断用于哪一个innermap,这样就会对并发性能由很大的提升。</p>
 <h2 id="代码复现"><a href="#代码复现" class="headerlink" title="代码复现"></a>代码复现</h2><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> concurrent_map</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">	<span class="string">&quot;sync&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> innerMap <span class="keyword">struct</span> &#123;</span><br><span class="line">	m    <span class="keyword">map</span>[<span class="keyword">interface</span>&#123;&#125;]<span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">	lock sync.RWMutex</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//这个接口用于给用户自己设计key,hash方法也可以自己设计</span></span><br><span class="line"><span class="keyword">type</span> Concurrent_Key <span class="keyword">interface</span> &#123;</span><br><span class="line">	RawKey() <span class="keyword">interface</span>&#123;&#125;        <span class="comment">//原始的key值</span></span><br><span class="line">	KeyAfterPartitioned() <span class="type">int64</span> <span class="comment">//原始key值经过hash运算后得到的结果</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> ConcurrentMap <span class="keyword">struct</span> &#123;</span><br><span class="line">	partitions_map   []*innerMap</span><br><span class="line">	numsOfPartitions <span class="type">int64</span> <span class="comment">//记录分区数量</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">CreatConcurrentMap</span><span class="params">(numsOfPartitions <span class="type">int64</span>)</span></span> *ConcurrentMap &#123;</span><br><span class="line">	<span class="keyword">var</span> partitions_map []*innerMap</span><br><span class="line">	<span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="type">int</span>(numsOfPartitions); i++ &#123;</span><br><span class="line">		partitions_map = <span class="built_in">append</span>(partitions_map, &amp;innerMap&#123;</span><br><span class="line">			m: <span class="built_in">make</span>(<span class="keyword">map</span>[<span class="keyword">interface</span>&#123;&#125;]<span class="keyword">interface</span>&#123;&#125;),</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> &amp;ConcurrentMap&#123;</span><br><span class="line">		partitions_map:   partitions_map,</span><br><span class="line">		numsOfPartitions: numsOfPartitions,</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//下面是concurrentMap的一些基本使用方式,由于innermap是内</span></span><br><span class="line"><span class="comment">//部map,因此它的操作方法都应该首字母小写</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(im *innerMap)</span></span> get(key Concurrent_Key) (<span class="keyword">interface</span>&#123;&#125;, <span class="type">bool</span>) &#123;</span><br><span class="line">	im.lock.RLock()</span><br><span class="line">	val, ok := im.m[key.RawKey()]</span><br><span class="line">	im.lock.RUnlock()</span><br><span class="line">	<span class="keyword">return</span> val, ok</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(im *innerMap)</span></span> set(key Concurrent_Key, val <span class="keyword">interface</span>&#123;&#125;) &#123;</span><br><span class="line">	im.lock.Lock()</span><br><span class="line">	im.m[key.RawKey()] = val</span><br><span class="line">	im.lock.Unlock()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(im *innerMap)</span></span> del(key Concurrent_Key) &#123;</span><br><span class="line">	im.lock.Lock()</span><br><span class="line">	<span class="built_in">delete</span>(im.m, key.RawKey())</span><br><span class="line">	im.lock.Unlock()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//这个方法用于获取分区</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(cm *ConcurrentMap)</span></span> getPartition(key Concurrent_Key) *innerMap &#123;</span><br><span class="line">	<span class="keyword">return</span> cm.partitions_map[key.KeyAfterPartitioned()%cm.numsOfPartitions]</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//下面的方法需要大写首字母</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(cm *ConcurrentMap)</span></span> Get(key Concurrent_Key) (<span class="keyword">interface</span>&#123;&#125;, <span class="type">bool</span>) &#123;</span><br><span class="line">	im := cm.getPartition(key)</span><br><span class="line">	<span class="keyword">return</span> im.get(key)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(cm *ConcurrentMap)</span></span> Set(key Concurrent_Key, val <span class="keyword">interface</span>&#123;&#125;) &#123;</span><br><span class="line">	im := cm.getPartition(key)</span><br><span class="line">	im.set(key, val)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(cm *ConcurrentMap)</span></span> Del(key Concurrent_Key) &#123;</span><br><span class="line">	im := cm.getPartition(key)</span><br><span class="line">	im.del(key)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
@@ -208,135 +215,33 @@
 
 <p>关于hash的实现可以参考我的<a target="_blank" rel="noopener" href="https://github.com/JackTan25/MurmurHashTest3">JackTan25&#x2F;MurmurHashTest3</a></p>
 
-      
     </div>
 
     
     
     
+
       <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
+          <div class="post-tags">
+              <a href="/tags/Concurrency-Map/" rel="tag"># Concurrency Map</a>
+          </div>
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="en">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="John Doe">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/" class="post-title-link" itemprop="url">Chandy Lamport Algorithm-a classic distributed snapshot algorithm</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">Posted on</span>
-
-              <time title="Created: 2022-05-18 21:15:52" itemprop="dateCreated datePublished" datetime="2022-05-18T21:15:52+08:00">2022-05-18</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">Edited on</span>
-                <time title="Modified: 2022-05-19 23:30:30" itemprop="dateModified" datetime="2022-05-19T23:30:30+08:00">2022-05-19</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">In</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/distributed-system/" itemprop="url" rel="index"><span itemprop="name">distributed system</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>这篇文章主要介绍经典的分布式快照算法——<strong>Chandy Lamport Algorithm.</strong></p>
-<h2 id="引入"><a href="#引入" class="headerlink" title="引入"></a>引入</h2><p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/1.png"></p>
-<p>比如在我们上面这张图里面，我们可以很容易知晓各国领导人的当前状态，因为无论从时间上还是空间的角度而言，他们都是同步好了，也就是说我们知道了在这一时刻每个领导人的状态。</p>
-<p>但是如果这些领导人他们各自在家，我们有该如何去获取这样一个快照呢？而且同时我们实际需要的快照会更加复杂些，比如目前领导者之前通话说的内容也需要记载。</p>
-<p>因此我们需要一个全局的快照来记录一个全局的状态。</p>
-<p>对于一个分布式系统而言，会有许多应用程序分布在不同的物理机上。这些应用程序进程之间的交互则是使用channel（通道），那么基于这样的一个抽象的模型，我们定义我们的全局快照如下：</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">一个全局快照需要记录每一个进程的本地状态(例如程序变量等)以及每一个channel的状态。</span><br></pre></td></tr></table></figure>
-
-<p>那么我们用这个快照的好处有哪些呢?</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1.用作检查点:当出现应用程序失败时可以重启恢复</span><br><span class="line">2.垃圾收集(GC):可以讲不再用到的数据删除</span><br><span class="line">3.死锁检测:可以检测当前应用程序状态是否出现死锁</span><br><span class="line">4.用于调试:使用快照讲更优于打印的方式来进行调试</span><br><span class="line">.......</span><br></pre></td></tr></table></figure>
-
-<p>那么快照的生成我们需要的各个进程的同一时刻的状态，且要是全局的，但是我们怎么去保证这样一个同一时刻呢？因为存在时钟倾斜的问题，我们很难保证做到这一点，也就是说同步快照是很难做到的。</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">由于无法做到&quot;同时&quot;,因此在时间差上就可能有状态的变化，任何进程接受或者发送消息或者做了</span><br><span class="line">其它什么事情状态都将被认为改变了。</span><br></pre></td></tr></table></figure>
-
-<h2 id="Chandy-Lamport-Algorithm"><a href="#Chandy-Lamport-Algorithm" class="headerlink" title="Chandy Lamport Algorithm"></a>Chandy Lamport Algorithm</h2><p> 为了解决这个时钟的问题，于是我们有了这个算法。</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">系统模型:</span><br><span class="line">	待解决的问题:</span><br><span class="line">		记录一个全局的快照(记录每个进程和每个channel的状态)</span><br><span class="line">	模型:</span><br><span class="line">		1.系统当中有N个进程,并且都不会失败</span><br><span class="line">		2.在每个Process对之间都会有两个单向的FIFO的通道(P1---&gt;P2 和 P2----&gt;P1)</span><br><span class="line">		3.所有的消息都会到达,并且完好无损(intact),没有重复</span><br><span class="line">要求:</span><br><span class="line">	1.生成快照不应该影响系统的正常运行</span><br><span class="line">	2.每个进程都可以自己记录自己的状态</span><br><span class="line">	3.可以分布式地去搜集这些状态</span><br><span class="line">	4.任何进程都可以初始化一个快照</span><br></pre></td></tr></table></figure>
-
-<h3 id="初始化快照（快照的开始点）"><a href="#初始化快照（快照的开始点）" class="headerlink" title="初始化快照（快照的开始点）"></a>初始化快照（快照的开始点）</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">对于进程Pi而言,它会记录自己的状态同时也会准备一个特殊的标记消息(marker message),然</span><br><span class="line">后它会将这个标记消息发送给其它N-1个节点.接下来就会去记录所有从其它节点(也就是Cji,i!=j)</span><br><span class="line">过来的消息(因为在channel里面的消息也是快照的一部分,这些消息暂留在channel)</span><br></pre></td></tr></table></figure>
-
-<h3 id="传播快照"><a href="#传播快照" class="headerlink" title="传播快照"></a>传播快照</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">对于所有的进程它会对于收到的消息做一个识别.当它发现自己收到了一个marker message就会触发快照的</span><br><span class="line">的执行.下面为了方便描述,我们考虑Pj,它的对应marker message的channel记作Ckj,代表数据从k流向j</span><br><span class="line">	如果收到marker消息时(这个标记消息是我们第一次收到的,如果重复收就不是这个条件了):</span><br><span class="line">		1.Pj记录自己的状态并标记Ckj为空</span><br><span class="line">		2.发送该marker message给所有其它N-1个节点</span><br><span class="line">		3.接下来开始去记录在Clj里面的暂留的消息(l!=j,l!=k,关于这里其实也没有那么严格</span><br><span class="line">		其实后那个例子在这一点也不是这么严格的,即使不遵守只要保证幂等也可以)</span><br><span class="line">	否则就将Ctj(t!=j)通道里面过来的消息记录到状态中(注意这里的记录状态按照我的理解应该</span><br><span class="line">		指的是普通的日志记录)</span><br></pre></td></tr></table></figure>
-
-<h3 id="中断快照"><a href="#中断快照" class="headerlink" title="中断快照"></a>中断快照</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">当所有的进程都收到了marker message后并且自己的状态也记录好了,这时就会有一个</span><br><span class="line">中央服务器来收集部分状态构建出一个全局的快照</span><br></pre></td></tr></table></figure>
-
-<h2 id="算法例子"><a href="#算法例子" class="headerlink" title="算法例子"></a>算法例子</h2><p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/2.png"></p>
-<p>如上图时最开始的起始状系统状态，首先我们P1作为快照起始点，它会先记录自己的本地状态，如下，在记录完本地状态后就成为下图了（蓝色代表状态记录完毕）</p>
-<p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/3.png"></p>
-<p>在达到上面这个图的系统状态后，在下图当中，此时P1发送了一条marker message,同时P2也发了一条消息到通道当中。</p>
-<p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/4.png"></p>
-<p>在下图当中，此时P1就会开始记录通道的消息（发送完marker message后），而P2在收到marker message后也将这个marker message广播出去了 </p>
-<p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/5.png"></p>
-<p>在上图当中P2收到了标记消息（第一次）就会记录本地状态，也会将通道C12标记为empty，同时记录C12里面滞留的消息（由于上C12上面实际上啥也没有了，所以实际没做啥），现在就变成了上面的系统状态了（蓝色区域代表都已经生成好的状态）</p>
-<p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/6.png"></p>
-<p>在上图当中，P1由于发完了标记消息后也会记录C21的消息，所以M1也被记录到状态当中，然后C21也被标记为empty</p>
-<p><img src="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/7.png"></p>
-<p>最后的结果就是上面蓝色部分整体构成一个全局的快照。</p>
-<h2 id="算法正确性证明"><a href="#算法正确性证明" class="headerlink" title="算法正确性证明"></a>算法正确性证明</h2><p>首先我们这个算法的目的是解决时钟倾斜的问题的，而实际上本算法是通过保证了一个因果一致性来另辟蹊径的。因此我们需要证明它的因果一致性。</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">	1.如果事件发生在任意一个进程的快照之前，就称之为预快照(presnapshot)，也就是</span><br><span class="line">说这个事件也应当最后在我们的全局快照当中</span><br><span class="line">	2.如果一个事件发生任意一个进程快照之后，那么就是称之为后快照(postsnapshot)，也</span><br><span class="line">就是说这个事件不应该出现在我们的全局快照当中</span><br><span class="line">	3.如果A发生在预快照B之前，那么A也是预快照</span><br></pre></td></tr></table></figure>
-
-<p>下面开始证明:</p>
-<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">1.如果A和B事件都发生在同一个进程当中，那么我们无需担心在生成快照时出问题</span><br><span class="line">2.如果时不同的进程,那么假设我们在进程P上发送事件是A,而在Q上相应的接受事件是B,</span><br><span class="line">如果说B是presnapshot,那么说明Q就还没有收到marker message(收到marker mess</span><br><span class="line">age就代表快照开始了),那么P肯定也还没有发送marker message(发送marker mess</span><br><span class="line">age就代表快照开始了),这说明了A肯定也是一个presnapshot</span><br><span class="line">3.当B是postsnapshot同样可以证明A也是postsnapshot</span><br><span class="line"></span><br><span class="line">综上所述我们证明了快照的正确性</span><br></pre></td></tr></table></figure>
+        
 
 
-      
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/05/18/Chandy-Lamport-Algorithm-a-classic-distributed-snapshot-algorithm/" rel="prev" title="Chandy Lamport Algorithm-a classic distributed snapshot algorithm">
+      <i class="fa fa-chevron-left"></i> Chandy Lamport Algorithm-a classic distributed snapshot algorithm
+    </a></div>
+      <div class="post-nav-item"></div>
     </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
       </footer>
+    
   </article>
   
   
-  
-
-
   
 
 
@@ -389,6 +294,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8E%9F%E7%90%86%E8%AE%BE%E8%AE%A1"><span class="nav-number">1.</span> <span class="nav-text">原理设计</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%A3%E7%A0%81%E5%A4%8D%E7%8E%B0"><span class="nav-number">2.</span> <span class="nav-text">代码复现</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
